@@ -1,5 +1,5 @@
 var/global/narsie_behaviour = "CultStation13"
-
+var/global/narsie_cometh = 0
 /obj/machinery/singularity/narsie //Moving narsie to its own file for the sake of being clearer
 	name = "Nar-Sie"
 	desc = "Your mind begins to bubble and ooze as it tries to comprehend what it sees."
@@ -31,16 +31,24 @@ var/global/narsie_behaviour = "CultStation13"
 	consume_range = 12 // How many tiles out do we eat.
 	var/announce=1
 
-/obj/machinery/singularity/narsie/large/New(var/cultspawn=0)
+/obj/machinery/singularity/narsie/large/New()
 	..()
 	if(announce)
 		world << "<font size='15' color='red'><b>[uppertext(name)] HAS RISEN</b></font>"
+		world << sound('sound/effects/wind/wind_5_1.ogg')
+
+	if(istype(ticker.mode, /datum/game_mode/cult))
+		var/datum/game_mode/cult/mode_ticker = ticker.mode
+		if (mode_ticker.objectives[mode_ticker.current_objective] == "eldergod")
+			mode_ticker.third_phase()
 
 	if (emergency_shuttle)
-		emergency_shuttle.incall(0.3) // Cannot recall.
+		emergency_shuttle.incall(0.3)
+		emergency_shuttle.can_recall = 0
+		emergency_shuttle.settimeleft(600)
 
-	if(cultspawn)
-		SetUniversalState(/datum/universal_state/hell)
+	SetUniversalState(/datum/universal_state/hell)
+	narsie_cometh = 1
 /*
 	updateicon()
 */
@@ -80,7 +88,7 @@ var/global/narsie_behaviour = "CultStation13"
 	if(isturf(A))
 		narsiewall(A)
 	else if(istype(A, /obj/structure/cult))
-		del(A)
+		qdel(A)
 	else
 		consume(A)
 
@@ -88,7 +96,7 @@ var/global/narsie_behaviour = "CultStation13"
 	if(isturf(A))
 		narsiewall(A)
 	else if(istype(A, /obj/structure/cult))
-		del(A)
+		qdel(A)
 	else
 		consume(A)
 
@@ -208,7 +216,7 @@ var/global/narsie_behaviour = "CultStation13"
 				var/obj/machinery/bot/B = A
 				if(B.flags & INVULNERABLE)
 					return
-			A.ex_act(1)
+			qdel(A)
 
 			if (A)
 				qdel(A)
@@ -255,7 +263,7 @@ var/global/narsie_behaviour = "CultStation13"
 			var/obj/machinery/bot/B = A
 			if(B.flags & INVULNERABLE)
 				return
-		A.ex_act(1)
+		qdel(A)
 
 		if (A)
 			qdel(A)

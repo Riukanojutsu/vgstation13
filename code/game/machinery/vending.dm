@@ -67,6 +67,7 @@
 	var/list/overlays_vending[2]//1 is the panel layer, 2 is the dangermode layer
 
 	machine_flags = SCREWTOGGLE | WRENCHMOVE | FIXED2WORK | CROWDESTROY
+	languages = HUMAN
 
 	var/obj/machinery/account_database/linked_db
 	var/datum/money_account/linked_account
@@ -370,9 +371,11 @@
 	if(stat & (BROKEN|NOPOWER))
 		return
 
-	if(seconds_electrified != 0)
+	if(seconds_electrified > 0)
 		if(shock(user, 100))
 			return
+	else if (seconds_electrified)
+		seconds_electrified = 0
 
 	user.set_machine(src)
 
@@ -461,7 +464,7 @@
 			usr << "There is no coin in this machine."
 			return
 
-		coin.loc = src.loc
+		coin.loc = get_turf(src)
 		if(!usr.get_active_hand())
 			usr.put_in_hands(coin)
 		usr << "\blue You remove the [coin] from the [src]"
@@ -595,10 +598,10 @@
 
 	if (!message)
 		return
+	say(message)
 
-	for(var/mob/O in hearers(src, null))
-		O.show_message("<span class='game say'><span class='name'>[src]</span> beeps, \"[message]\"",2)
-	return
+/obj/machinery/vending/say_quote(text)
+	return "beeps, \"[text]\""
 
 /obj/machinery/vending/power_change()
 	if(stat & BROKEN)
@@ -865,33 +868,6 @@
 	pack = /obj/structure/vendomatpack/medical//can be reloaded with NanoMed Plus packs
 
 ////////WALL-MOUNTED NANOMED FRAME//////
-/obj/item/wallmed_frame
-	name = "NanoMed frame"
-	desc = "Wall-mounted Medical Equipment dispenser."
-	icon = 'icons/obj/vending.dmi'
-	icon_state = "wallmed_frame0"
-	flags = FPRINT | TABLEPASS | CONDUCT
-
-/obj/item/wallmed_frame/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	..()
-	if (istype(W, /obj/item/weapon/wrench))
-		new /obj/item/stack/sheet/metal( get_turf(src.loc), 3 )
-		playsound(get_turf(src), 'sound/items/Ratchet.ogg', 50, 1)
-		del(src)
-
-/obj/item/wallmed_frame/proc/try_build(turf/on_wall)
-	if (get_dist(on_wall,usr)>1)
-		return
-	var/ndir = get_dir(usr,on_wall)
-	if (!(ndir in cardinal))
-		return
-	var/turf/loc = get_turf(usr)
-	if (!istype(loc, /turf/simulated/floor))
-		usr << "<span class='warning'>[src] cannot be placed on this spot.</span>"
-		return
-	new /obj/machinery/wallmed_frame(loc, ndir)
-	del(src)
-
 /obj/machinery/vending/wallmed1/New(turf/loc)
 	..()
 	component_parts = 0
@@ -907,13 +883,13 @@
 		user.visible_message(	"[user] detaches the NanoMed from the wall.",
 								"You detach the NanoMed from the wall.")
 		playsound(get_turf(src), 'sound/items/Crowbar.ogg', 50, 1)
-		new /obj/item/wallmed_frame(src.loc)
+		new /obj/item/mounted/frame/wallmed(src.loc)
 
 		for(var/obj/I in src)
 			qdel(I)
 
 		new /obj/item/weapon/circuitboard/vendomat(src.loc)
-		new /obj/item/weapon/cable_coil(loc,5)
+		new /obj/item/stack/cable_coil(loc,5)
 
 		return 1
 	return -1
@@ -925,13 +901,13 @@
 		user.visible_message(	"[user] detaches the NanoMed from the wall.",
 								"You detach the NanoMed from the wall.")
 		playsound(get_turf(src), 'sound/items/Crowbar.ogg', 50, 1)
-		new /obj/item/wallmed_frame(src.loc)
+		new /obj/item/mounted/frame/wallmed(src.loc)
 
 		for(var/obj/I in src)
 			qdel(I)
 
 		new /obj/item/weapon/circuitboard/vendomat(src.loc)
-		new /obj/item/weapon/cable_coil(loc,5)
+		new /obj/item/stack/cable_coil(loc,5)
 
 		return 1
 	return -1
@@ -968,7 +944,7 @@
 				if(do_after(user, 50))
 					usr << "<span class='notice'>You unscrew \the [src] from the wall.</span>"
 					playsound(get_turf(src), 'sound/items/Screwdriver.ogg', 50, 1)
-					new /obj/item/wallmed_frame(get_turf(src))
+					new /obj/item/mounted/frame/wallmed(get_turf(src))
 					del(src)
 				return 1
 			if(istype(W, /obj/item/weapon/circuitboard))
@@ -1004,8 +980,8 @@
 						"<span class='warning'>[user.name] has removed \the [C]!</span>",\
 						"You remove \the [C].")
 				return 1
-			if(istype(W, /obj/item/weapon/cable_coil))
-				var/obj/item/weapon/cable_coil/C=W
+			if(istype(W, /obj/item/stack/cable_coil))
+				var/obj/item/stack/cable_coil/C=W
 				user << "You start adding cables to \the [src]..."
 				playsound(get_turf(src), 'sound/items/Deconstruct.ogg', 50, 1)
 				if(do_after(user, 20) && C.amount >= 5)
@@ -1019,7 +995,7 @@
 			if(istype(W, /obj/item/weapon/wirecutters))
 				usr << "You begin to remove the wiring from \the [src]."
 				if(do_after(user, 50))
-					new /obj/item/weapon/cable_coil(loc,5)
+					new /obj/item/stack/cable_coil(loc,5)
 					user.visible_message(\
 						"<span class='warning'>[user.name] cut the cables.</span>",\
 						"You cut the cables.")
@@ -1150,8 +1126,8 @@
 	desc = "A kitchen and restaurant equipment vendor"
 	product_ads = "Mm, food stuffs!;Food and food accessories.;Get your plates!;You like forks?;I like forks.;Woo, utensils.;You don't really need these..."
 	icon_state = "dinnerware"
-	products = list(/obj/item/weapon/tray = 8,/obj/item/weapon/kitchen/utensil/fork = 6,/obj/item/weapon/kitchenknife = 3,/obj/item/weapon/reagent_containers/food/drinks/drinkingglass = 8,/obj/item/clothing/suit/chef/classic = 2,/obj/item/trash/bowl = 20)
-	contraband = list(/obj/item/weapon/kitchen/utensil/spoon = 2,/obj/item/weapon/kitchen/utensil/knife = 2,/obj/item/weapon/kitchen/rollingpin = 2, /obj/item/weapon/butch = 2)
+	products = list(/obj/item/weapon/tray = 8,/obj/item/weapon/kitchen/utensil/fork = 6,/obj/item/weapon/kitchen/utensil/knife/large = 3,/obj/item/weapon/reagent_containers/food/drinks/drinkingglass = 8,/obj/item/clothing/suit/chef/classic = 2,/obj/item/trash/bowl = 20, /obj/item/weapon/reagent_containers/food/condiment/peppermill = 5, /obj/item/weapon/reagent_containers/food/condiment/saltshaker	= 5)
+	contraband = list(/obj/item/weapon/kitchen/utensil/spoon = 2,/obj/item/weapon/kitchen/utensil/knife = 2,/obj/item/weapon/kitchen/rollingpin = 2, /obj/item/weapon/kitchen/utensil/knife/large/butch = 2)
 
 	pack = /obj/structure/vendomatpack/dinnerware
 
@@ -1172,7 +1148,7 @@
 	icon_state = "tool"
 	icon_deny = "tool-deny"
 	//req_access_txt = "12" //Maintenance access
-	products = list(/obj/item/weapon/cable_coil/random = 10,/obj/item/weapon/crowbar = 5,/obj/item/weapon/weldingtool = 3,/obj/item/weapon/wirecutters = 5,
+	products = list(/obj/item/stack/cable_coil/random = 10,/obj/item/weapon/crowbar = 5,/obj/item/weapon/weldingtool = 3,/obj/item/weapon/wirecutters = 5,
 					/obj/item/weapon/wrench = 5,/obj/item/device/analyzer = 5,/obj/item/device/t_scanner = 5,/obj/item/weapon/screwdriver = 5)
 	contraband = list(/obj/item/weapon/weldingtool/hugetank = 2,/obj/item/clothing/gloves/fyellow = 2)
 	premium = list(/obj/item/clothing/gloves/yellow = 1)
@@ -1185,7 +1161,7 @@
 	icon_state = "engivend"
 	icon_deny = "engivend-deny"
 	req_access_txt = "11" //Engineering Equipment access
-	products = list(/obj/item/clothing/glasses/meson = 2,/obj/item/device/multitool = 4,/obj/item/weapon/circuitboard/airlock = 10,/obj/item/weapon/module/power_control = 10,/obj/item/weapon/circuitboard/air_alarm = 10,/obj/item/weapon/cell/high = 10)
+	products = list(/obj/item/clothing/glasses/meson = 2,/obj/item/device/multitool = 4,/obj/item/weapon/circuitboard/airlock = 10,/obj/item/weapon/module/power_control = 10,/obj/item/weapon/circuitboard/air_alarm = 10,/obj/item/weapon/intercom_electronics = 10,/obj/item/weapon/cell/high = 10)
 	contraband = list(/obj/item/weapon/cell/potato = 3)
 	premium = list(/obj/item/weapon/storage/belt/utility = 3)
 
@@ -1201,7 +1177,7 @@
 	products = list(/obj/item/clothing/under/rank/chief_engineer = 4,/obj/item/clothing/under/rank/engineer = 4,/obj/item/clothing/shoes/orange = 4,/obj/item/clothing/head/hardhat = 4,
 					/obj/item/weapon/storage/belt/utility = 4,/obj/item/clothing/glasses/meson = 4,/obj/item/clothing/gloves/yellow = 4, /obj/item/weapon/screwdriver = 12,
 					/obj/item/weapon/crowbar = 12,/obj/item/weapon/wirecutters = 12,/obj/item/device/multitool = 12,/obj/item/weapon/wrench = 12,/obj/item/device/t_scanner = 12,
-					/obj/item/weapon/cable_coil/heavyduty = 8, /obj/item/weapon/cell = 8, /obj/item/weapon/weldingtool = 8,/obj/item/clothing/head/welding = 8,
+					/obj/item/stack/cable_coil/heavyduty = 8, /obj/item/weapon/cell = 8, /obj/item/weapon/weldingtool = 8,/obj/item/clothing/head/welding = 8,
 					/obj/item/weapon/light/tube = 10,/obj/item/clothing/suit/fire = 4, /obj/item/weapon/stock_parts/scanning_module = 5,/obj/item/weapon/stock_parts/micro_laser = 5,
 					/obj/item/weapon/stock_parts/matter_bin = 5,/obj/item/weapon/stock_parts/manipulator = 5,/obj/item/weapon/stock_parts/console_screen = 5)
 	// There was an incorrect entry (cablecoil/power).  I improvised to cablecoil/heavyduty.
@@ -1217,7 +1193,7 @@
 	icon_state = "robotics"
 	icon_deny = "robotics-deny"
 	req_access_txt = "29"
-	products = list(/obj/item/clothing/suit/storage/labcoat = 4,/obj/item/clothing/under/rank/roboticist = 4,/obj/item/weapon/cable_coil = 4,/obj/item/device/flash = 4,
+	products = list(/obj/item/clothing/suit/storage/labcoat = 4,/obj/item/clothing/under/rank/roboticist = 4,/obj/item/stack/cable_coil = 4,/obj/item/device/flash = 4,
 					/obj/item/weapon/cell/high = 12, /obj/item/device/assembly/prox_sensor = 3,/obj/item/device/assembly/signaler = 3,/obj/item/device/healthanalyzer = 3,
 					/obj/item/weapon/scalpel = 2,/obj/item/weapon/circular_saw = 2,/obj/item/weapon/tank/anesthetic = 2,/obj/item/clothing/mask/breath/medical = 5,
 					/obj/item/weapon/screwdriver = 5,/obj/item/weapon/crowbar = 5)
@@ -1248,7 +1224,7 @@
 					/obj/item/clothing/suit/wizrobe/marisa/fake = 3,/obj/item/clothing/under/sundress = 3,/obj/item/clothing/head/witchwig = 3,/obj/item/weapon/staff/broom = 3,
 					/obj/item/clothing/suit/wizrobe/fake = 3,/obj/item/clothing/head/wizard/fake = 3,/obj/item/weapon/staff = 3,/obj/item/clothing/mask/gas/sexyclown = 3,
 					/obj/item/clothing/under/sexyclown = 3,/obj/item/clothing/mask/gas/sexymime = 3,/obj/item/clothing/under/sexymime = 3,/obj/item/clothing/suit/apron/overalls = 3,
-					/obj/item/clothing/head/rabbitears =3) //Pretty much everything that had a chance to spawn.
+					/obj/item/clothing/head/rabbitears = 3,/obj/item/clothing/head/lordadmiralhat = 3,/obj/item/clothing/suit/lordadmiral = 3,/obj/item/clothing/suit/doshjacket = 3,/obj/item/clothing/under/jester = 3, /obj/item/clothing/head/jesterhat = 3,/obj/item/clothing/shoes/jestershoes = 3, /obj/item/clothing/suit/kefkarobe = 3) //Pretty much everything that had a chance to spawn.
 	contraband = list(/obj/item/clothing/suit/cardborg = 3,/obj/item/clothing/head/cardborg = 3,/obj/item/clothing/suit/judgerobe = 3,/obj/item/clothing/head/powdered_wig = 3)
 	premium = list(/obj/item/clothing/suit/hgpirate = 3, /obj/item/clothing/head/hgpiratecap = 3, /obj/item/clothing/head/helmet/roman = 3, /obj/item/clothing/head/helmet/roman/legionaire = 3, /obj/item/clothing/under/roman = 3, /obj/item/clothing/shoes/roman = 3, /obj/item/weapon/shield/riot/roman = 3)
 
